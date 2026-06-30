@@ -36,6 +36,38 @@ _LARK_CHINA_BASE_URL = "https://open.feishu.cn"
 _LARK_MSG_MAX_LEN = 10000
 
 
+_SEEN_MSG_TTL = 120  # seconds to remember processed message IDs
+
+
+class _SeenMessageIds:
+    """Thread-safe dedup cache for Lark webhook message IDs.
+
+    Lark may retry a webhook POST if the server doesn't respond within ~3 s.
+    Tracking the last-seen message_id prevents the duplicate delivery from
+    being processed twice and causing a double-reply to the user.
+    """
+
+    def __init__(self, ttl: int = _SEEN_MSG_TTL):
+        self._lock = threading.Lock()
+        self._seen: dict = {}  # message_id -> expire_at
+        self._ttl = ttl
+
+    def check_and_set(self, message_id: str) -> bool:
+        """Return True (duplicate — skip) if already seen; otherwise record and return False."""
+        now = time.time()
+        with self._lock:
+            self._purge(now)
+            if message_id in self._seen:
+                return True
+            self._seen[message_id] = now + self._ttl
+            return False
+
+    def _purge(self, now: float) -> None:
+        expired = [k for k, v in self._seen.items() if v <= now]
+        for k in expired:
+            del self._seen[k]
+
+
 class _LarkTokenCache:
     """Thread-safe cache for Lark tenant access tokens."""
 
@@ -115,6 +147,7 @@ class LarkChannel(BaseChannel):
         self._encrypt_key = config.get('encrypt_key', '')
         self._receive_mode = config.get('receive_mode', 'webhook')
         self._token_cache = _LarkTokenCache()
+        self._seen_msg_ids = _SeenMessageIds()
         self._ws_thread: Optional[threading.Thread] = None
 
     @staticmethod
@@ -537,7 +570,6 @@ class LarkChannel(BaseChannel):
         """
         from backend.agent_runtime import agent_runtime
         from models.db import db
-        from backend.event_stream import event_stream
 
         # URL verification handshake. Lark sends this when the callback URL is
         # first configured in the app console.
@@ -566,6 +598,11 @@ class LarkChannel(BaseChannel):
         event = payload.get("event") or {}
 
         message = event.get("message") or {}
+        msg_id = message.get("message_id", "")
+        if msg_id and self._seen_msg_ids.check_and_set(msg_id):
+            _logger.debug("Lark channel %s: duplicate message_id %s — skipping", self.channel_id, msg_id)
+            return {"code": 0, "msg": "ok"}
+
         sender = (event.get("sender") or {}).get("sender_id", {})
         user_id = sender.get("open_id") or sender.get("user_id") or sender.get("union_id")
         if not user_id:
@@ -665,10 +702,4 @@ class LarkChannel(BaseChannel):
             for chunk in _split_message(response):
                 self._do_send(user_id, chunk)
 
-        event_stream.emit('message_sent', {
-            'channel_type': 'lark',
-            'channel_id': self.channel_id,
-            'external_user_id': user_id,
-            'message': response,
-        })
         return {"code": 0, "msg": "ok"}
