@@ -115,6 +115,9 @@ def _register_builtins():
 
         db.clear_session(session_id, agent_id)
 
+        from models.chatlog import chatlog_manager
+        chatlog_manager.get(agent_id, session_id).clear()
+
         # Clear in-memory loaded skill state so skill badges disappear from session state UI
         from backend.agent_runtime import agent_runtime
         agent_runtime._session_skill_mds.pop(session_id, None)

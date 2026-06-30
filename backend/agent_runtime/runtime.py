@@ -2347,6 +2347,7 @@ class AgentRuntime:
         """Clear chat history for a user's session."""
         session_id = db.get_or_create_session(agent_id, external_user_id, channel_id)
         db.clear_session(session_id, agent_id=agent_id)
+        chatlog_manager.get(agent_id, session_id).clear()
         self._session_skill_mds.pop(session_id, None)
         self._session_skill_tools.pop(session_id, None)
 
