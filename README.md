@@ -154,12 +154,11 @@ Create and manage agents via the web UI (`/agents`) or CLI:
 Connect your agents to the platforms your users already use:
 
 | Channel | Status | Library |
-|---------|--------|---------|
 | **Telegram** | ✅ Implemented | `python-telegram-bot` |
 | **WhatsApp** | ✅ Implemented | `@whiskeysockets/baileys` (Node.js sidecar) |
 | **Discord** | ✅ Implemented | `discord.py` |
 | **Slack** | 🔄 Planned | `slack-sdk` |
-
+| **Lark / Feishu** | ✅ Implemented | `requests` (webhook + Bot API) |
 ---
 
 ## Skills

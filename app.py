@@ -593,7 +593,7 @@ def _csrf_exempt(path):
                 '/api/setup', '/api/setup/test-connection', '/api/setup/docker-status'):
         return True
     if path.startswith(('/static/', '/webhook', '/plugin/', '/ws/',
-                        '/api/channels/whatsapp-bridge/')):
+                        '/api/channels/whatsapp-bridge/', '/api/channels/lark/')):
         return True
     if path.endswith('/download-binary') and path.startswith('/api/workplaces/'):
         return True
@@ -666,8 +666,8 @@ def enforce_auth():
     # Always-accessible endpoints (no auth required)
     if request.path == '/api/health':
         return None
-    if request.path.startswith('/api/channels/whatsapp-bridge/'):
-        return None  # Baileys sidecar calls this from localhost
+    if request.path.startswith('/api/channels/whatsapp-bridge/') or request.path.startswith('/api/channels/lark/'):
+        return None  # Channel callbacks are called by external services
     if request.path == '/api/connector/pair':
         return None  # Evonet pairing is unauthenticated (uses pairing code)
     if request.path.endswith('/download-binary') and request.path.startswith('/api/workplaces/'):
