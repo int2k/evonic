@@ -603,14 +603,18 @@ class LarkChannel(BaseChannel):
             _logger.debug("Lark channel %s: duplicate message_id %s — skipping", self.channel_id, msg_id)
             return {"code": 0, "msg": "ok"}
 
-        sender = (event.get("sender") or {}).get("sender_id", {})
+        sender_obj = event.get("sender") or {}
+        if sender_obj.get("sender_type") != "user":
+            return {"code": 0, "msg": "ok"}
+
+        sender = sender_obj.get("sender_id", {})
         user_id = sender.get("open_id") or sender.get("user_id") or sender.get("union_id")
         if not user_id:
             _logger.warning("Lark channel %s: received message without sender id", self.channel_id)
             return {"code": 0, "msg": "ok"}
 
         display_name = self._ensure_user_display_name(db, event, user_id)
-        user_name = display_name or (event.get("sender") or {}).get("sender_type", "")
+        user_name = display_name or sender_obj.get("sender_type", "")
 
         # Parse text content. Lark sends content as a JSON string.
         content_raw = message.get("content", "{}")
