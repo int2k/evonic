@@ -1228,6 +1228,25 @@ def api_whatsapp_callback(channel_id):
     return jsonify({'ok': True})
 
 
+@agents_bp.route('/api/channels/lark/<channel_id>/callback', methods=['POST'])
+def api_lark_callback(channel_id):
+    """Receive incoming Lark / Feishu webhook events."""
+    import threading
+    from backend.channels.registry import channel_manager
+    instance = channel_manager.get_channel_instance(channel_id)
+    if not instance or instance.get_channel_type() != 'lark':
+        return jsonify({'error': 'Channel not found'}), 404
+    raw_body = request.get_data()
+    payload = request.get_json(silent=True) or {}
+    headers = {k: v for k, v in request.headers.items()}
+    threading.Thread(
+        target=instance.handle_callback,
+        args=(payload, headers, raw_body),
+        daemon=True,
+    ).start()
+    return jsonify({'code': 0, 'msg': 'ok'})
+
+
 # ==================== Compiled Prompt API ====================
 
 @agents_bp.route('/api/agents/<agent_id>/compiled-prompt', methods=['GET'])

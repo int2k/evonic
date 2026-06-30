@@ -25,6 +25,7 @@ html.dark #summary-card { background: #1f2937; border-color: #374151; }
 /* Dark mode: Channels tab (channel type badges) */
 html.dark #channels-list .bg-blue-100 { background: #172554 !important; color: #93c5fd !important; }
 html.dark #channels-list .bg-green-100 { background: #052e16 !important; color: #86efac !important; }
+html.dark #channels-list .bg-red-100 { background: #450a0a !important; color: #fca5a5 !important; }
 html.dark #channels-list .bg-purple-100 { background: #2e1065 !important; color: #c4b5fd !important; }
 /* Dark mode: Channels tab (channel list cards) */
 html.dark #channels-list .bg-gray-50 { background: #1f2937 !important; }
@@ -1072,6 +1073,7 @@ html.dark #system-prompt-modal .hover\:text-gray-600:hover { color: #d1d5db; }
                     <option value="telegram">Telegram</option>
                     <option value="whatsapp">WhatsApp</option>
                     <option value="discord">Discord</option>
+                    <option value="lark">Lark / Feishu</option>
                 </select>
             </div>
             <div class="mb-4">
@@ -3016,6 +3018,7 @@ async function loadChannels() {
     list.innerHTML = channels.map(ch => {
         const typeBadge = ch.type === 'telegram' ? 'bg-blue-100 text-blue-700' :
                           ch.type === 'whatsapp' ? 'bg-green-100 text-green-700' :
+                          ch.type === 'lark' ? 'bg-red-100 text-red-700' :
                           'bg-purple-100 text-purple-700';
         const running = ch.running;
         const statusDot = running ? 'bg-green-500' : 'bg-gray-300';
@@ -3066,6 +3069,7 @@ function showAddChannelModal() {
 function closeChannelModal() {
     document.getElementById('channel-modal').classList.add('hidden');
 }
+
 function updateChannelConfigFields() {
     const type = document.getElementById('channel-type').value;
     const container = document.getElementById('channel-config-fields');
@@ -3079,6 +3083,25 @@ function updateChannelConfigFields() {
         nameInput.placeholder = 'e.g., Main WhatsApp Bot';
         container.innerHTML = `
             <p class="text-sm text-gray-500 dark:text-gray-400">After adding, scan the QR code with WhatsApp on your phone to connect. No API keys required.</p>`;
+    } else if (type === 'lark') {
+        nameInput.placeholder = 'e.g., Lark Bot';
+        container.innerHTML = `
+            <label class="block mb-1 text-gray-600 dark:text-gray-300 text-sm font-medium">Receive Mode</label>
+            <select id="channel-lark-receive-mode" class="w-full p-2.5 border border-gray-300 rounded-md text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 dark:bg-gray-700 dark:text-gray-100 mb-3" onchange="updateLarkModeHint()">
+                <option value="stream">Long Connection (no public URL needed)</option>
+                <option value="webhook">Webhook (requires public URL)</option>
+            </select>
+            <label class="block mb-1 text-gray-600 dark:text-gray-300 text-sm font-medium">App ID</label>
+            <input type="text" id="channel-lark-app-id" placeholder="cli_xxxxxxxxxxxx" class="w-full p-2.5 border border-gray-300 rounded-md text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 dark:bg-gray-700 dark:text-gray-100 mb-3">
+            <label class="block mb-1 text-gray-600 dark:text-gray-300 text-sm font-medium">App Secret</label>
+            <input type="password" id="channel-lark-app-secret" placeholder="Lark app secret" class="w-full p-2.5 border border-gray-300 rounded-md text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 dark:bg-gray-700 dark:text-gray-100 mb-3">
+            <label class="block mb-1 text-gray-600 dark:text-gray-300 text-sm font-medium">Encrypt Key (optional)</label>
+            <input type="text" id="channel-lark-encrypt-key" placeholder="Webhook signature key" class="w-full p-2.5 border border-gray-300 rounded-md text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 dark:bg-gray-700 dark:text-gray-100 mb-3">
+            <label class="block mb-1 text-gray-600 dark:text-gray-300 text-sm font-medium">Base URL (optional)</label>
+            <input type="text" id="channel-lark-base-url" placeholder="https://open.larksuite.com" class="w-full p-2.5 border border-gray-300 rounded-md text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 dark:bg-gray-700 dark:text-gray-100">
+            <div id="lark-mode-hint" class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                <p><strong>Long Connection:</strong> Server connects to Lark automatically. No public URL needed.</p>
+            </div>`;
     } else {
         nameInput.placeholder = 'e.g., Main Discord Bot';
         container.innerHTML = `
@@ -3088,6 +3111,18 @@ function updateChannelConfigFields() {
     }
 }
 
+function updateLarkModeHint() {
+    const mode = document.getElementById('channel-lark-receive-mode')?.value || 'stream';
+    const hint = document.getElementById('lark-mode-hint');
+    if (!hint) return;
+    if (mode === 'stream') {
+        hint.innerHTML = '<p><strong>Long Connection:</strong> Server connects to Lark automatically. No public URL needed.</p>';
+    } else {
+        hint.innerHTML = '<p><strong>Webhook:</strong> Lark will push events to your server. You need a public URL.<br>Callback: <code>/api/channels/lark/&lt;channel_id&gt;/callback</code></p>';
+    }
+}
+
+
 async function addChannel() {
     const type = document.getElementById('channel-type').value;
     const name = document.getElementById('channel-name').value.trim();
@@ -3096,6 +3131,12 @@ async function addChannel() {
         config.bot_token = (document.getElementById('channel-bot-token')?.value || '').trim();
     } else if (type === 'whatsapp') {
         // Baileys-based: no API keys needed
+    } else if (type === 'lark') {
+        config.app_id = (document.getElementById('channel-lark-app-id')?.value || '').trim();
+        config.app_secret = (document.getElementById('channel-lark-app-secret')?.value || '').trim();
+        config.encrypt_key = (document.getElementById('channel-lark-encrypt-key')?.value || '').trim();
+        config.base_url = (document.getElementById('channel-lark-base-url')?.value || '').trim();
+        config.receive_mode = (document.getElementById('channel-lark-receive-mode')?.value || 'stream');
     }
     const res = await fetch(`/api/agents/${AGENT_ID}/channels`, {
         method: 'POST',
@@ -3239,6 +3280,7 @@ async function _cdRefresh() {
     document.getElementById('channel-detail-title').textContent = `Channel: ${ch.name || 'Unnamed'} - ${AGENT_ID}`;
     const badge = ch.type === 'telegram' ? 'bg-blue-100 text-blue-700' :
                   ch.type === 'whatsapp' ? 'bg-green-100 text-green-700' :
+                  ch.type === 'lark' ? 'bg-red-100 text-red-700' :
                   'bg-purple-100 text-purple-700';
     document.getElementById('cd-channel-type-badge').textContent = ch.type;
     document.getElementById('cd-channel-type-badge').className = `text-xs px-2 py-0.5 rounded font-medium ${badge}`;

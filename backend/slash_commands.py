@@ -721,7 +721,7 @@ def _register_builtins():
             channel = db.get_channel(channel_id)
             if channel:
                 ch_type = channel.get("type", "")
-                is_compact = ch_type in ("telegram", "whatsapp")
+                is_compact = ch_type in ("telegram", "whatsapp", "lark")
 
         lines = []
         if is_compact:
